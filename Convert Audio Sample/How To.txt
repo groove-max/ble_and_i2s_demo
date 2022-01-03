@@ -1,0 +1,6 @@
+
+Pyhton script used to convert from .wav to .h;
+$ python convert.py wav2c melody_1.wav melody_1.h
+
+To match the already existing samples in the repo, you need a mono .wav file with 16kHz sample. Can be done with sox:
+$ sox melody_1_input.wav -r 16000 -b 16 -e signed-integer -c 1 melody_1.wav
