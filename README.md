@@ -5,9 +5,9 @@ About this project
 ==================
 Has one BLE service with two characteristics:
 1. Audio (write only), 1 byte
-0x01 - Start to play the first melody
-0x02 - Start to play the second melody
-0x03 - Stop playing
+- 0x01 - Start to play the first melody
+- 0x02 - Start to play the second melody
+- 0x03 - Stop playing
 
 2. Accelerometer (read only), 6 bytes
 Contains the last accelerometer's values, written in unsigned Big Endian format, 2 bytes for each value (x,y,z).
@@ -31,9 +31,9 @@ How to get started
 1. Create new directory ("Projects", for example).
 2. Place SDK folder to "Projects" folder and rename it to "nRF5_SDK_Current".
 3. Clone the repository to this folder too. Directory structure should now look like this: 
-/Projects
-/Projects/nRF5_SDK_Current
-/Projects/ble_and_i2s_demo
+- /Projects
+- /Projects/nRF5_SDK_Current
+- /Projects/ble_and_i2s_demo
 4. Now open "/Projects/ble_and_i2s_app_demo/pca10056/s140/config/sdk_config.h" and make nessessary changes for your configuration.
 Define I2S pins:
 - #define I2S_CONFIG_SCK_PIN 31
