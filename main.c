@@ -69,7 +69,6 @@
 #include "app_util_platform.h"
 #include "nrf_drv_twi.h"
 #include "nrf_drv_gpiote.h"
-#include "nrf_drv_i2s.h"
 #include "nrf_delay.h"
 
 #include "nrf_log.h"
@@ -78,8 +77,10 @@
 
 #include "services/custom_service.h"
 
+#include "drivers/i2c.h"
 #include "sensors/BMA280.h"
 
+#include "drivers/i2s.h"
 #include "melodies/melody_1.h"
 #include "melodies/melody_2.h"
 
@@ -112,28 +113,25 @@
 
 #define DEAD_BEEF                       0xDEADBEEF                              /**< Value used as error code on stack dump, can be used to identify stack location on stack unwind. */
 
-#define BMA280_INT_PIN                  NRF_GPIO_PIN_MAP(1, 13)                 /**< Define BMA280 interrupt pin. */
+#define I2C_BMA280_ADDRESS              0x18                                    /**< Define BMA280 I2C address. */
 
-#define I2S_DATA_BLOCK_WORDS            512
+#define TWI_INSTANCE_ID 0
+#define TWI_IRQ_PRIORITY_LOW 3
 
-typedef enum {
+static const nrf_drv_twi_t g_i2c_instance = NRF_DRV_TWI_INSTANCE(TWI_INSTANCE_ID);
+
+static bool volatile b_bma280_int_detected = true;                              /**< BMA280 interrupt detection flag. True to fill startup values from accelerometer. */
+
+typedef enum player_commands_s {
     I2S_PLAY_FIRST_MELODY  = 0x01,
     I2S_PLAY_SECOND_MELODY = 0x02,
     I2S_PLAY_STOP_PLAYING  = 0x03
-} Player_modes;
-
-static uint32_t m_buffer_tx[2][I2S_DATA_BLOCK_WORDS];                           /**< I2S TX buffer. */
-static uint32_t m_offset = 0;                                                   /**< Melody's array offset when writing to buffer. */
-static uint32_t * volatile mp_block_to_fill = NULL;
-static const uint8_t * p_active_melody = NULL;                                  /**< Pointer for active melody's const array. */
-static uint32_t m_melody_array_size = 0;                                        /**< Will write size of melody's array. */
+} player_commands_t;
 
 BLE_CUSTOM_SERVICE_DEF(m_custom_service);                                       /**< Define our custom ble service. */
 NRF_BLE_GATT_DEF(m_gatt);                                                       /**< GATT module instance. */
 NRF_BLE_QWR_DEF(m_qwr);                                                         /**< Context for the Queued Write module.*/
 BLE_ADVERTISING_DEF(m_advertising);                                             /**< Advertising module instance. */
-
-static bool bma280_int_detected = true;                                         /**< BMA20 interrupt detection flag. True to fill startup values from accelerometer. */
 
 static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID;                        /**< Handle of the current connection. */
 
@@ -258,97 +256,37 @@ static void nrf_qwr_error_handler(uint32_t nrf_error)
 }
 
 
-/**@brief Function for preparing buffer to send via i2s.
- *
- * @param[in] p_block  Pointer to container which will be send.
- */
-static void prepare_tx_data(uint32_t * p_block)
-{
-    // [each data word contains two 16-bit samples]
-    uint16_t i = 0;
-    bool is_end = false;
-
-    /* Clear pcm buffer */
-    memset(p_block, 0, I2S_DATA_BLOCK_WORDS);
-
-    /* Fill pcm buffer with nessessary part of melody's array */
-    while( i < I2S_DATA_BLOCK_WORDS && !is_end ) 
-    {
-        uint32_t * p_word = &p_block[i];
-        uint8_t j;
-        for(j = 0; j < sizeof(uint32_t)/sizeof(uint8_t); j++) 
-        {
-            if(m_offset > m_melody_array_size) 
-            {
-                is_end = true;
-                break;
-            }
-            else 
-            {
-                ((uint8_t *)p_word)[j] = p_active_melody[m_offset++];
-            }
-        }
-        i++;
-    }
-}
-
-
-/**@brief Function for filling i2s buffers and starting transfer.
- */
-static uint32_t fill_buffers_and_start_i2s_transfer(void)
-{
-    prepare_tx_data(m_buffer_tx[0]);
-    nrf_drv_i2s_buffers_t const initial_buffers = {
-        .p_tx_buffer = m_buffer_tx[0],
-        .p_rx_buffer = NULL,
-    };
-    return nrf_drv_i2s_start(&initial_buffers, I2S_DATA_BLOCK_WORDS, 0);
-}
-
-
 /**@brief Function for handling write events to the Audio characteristic.
  *
  * @param[in] p_custom_service  Instance of Custom Service to which the write applies.
  * @param[in] command           Received command.
  */
-static void audio_write_handler(uint16_t conn_handle, ble_custom_service_t * p_custom_service, uint8_t command)
+void audio_write_handler(uint16_t conn_handle, ble_custom_service_t * p_custom_service, player_commands_t command)
 {
+    ret_code_t err_code;
+     
     switch(command) 
     {
         case I2S_PLAY_STOP_PLAYING:
             NRF_LOG_INFO("Received i2s stop command: 0x%x", command);
-            mp_block_to_fill = NULL;
-            m_offset = 0;
-            nrf_drv_i2s_stop();
+            i2s_stop_playing();
             break;
 
         case I2S_PLAY_FIRST_MELODY:
             NRF_LOG_INFO("Received i2s play command: 0x%x", command);
-            if(m_offset > 0) 
-            {
-                NRF_LOG_INFO("Wait for the last melody to finish playing", command);
-                return;
-            }
-            p_active_melody = melody_1;
-            m_melody_array_size = sizeof(melody_1);
-            APP_ERROR_CHECK( fill_buffers_and_start_i2s_transfer() );
+            err_code = i2s_start_playing(melody_1, sizeof(melody_1));
+            APP_ERROR_CHECK(err_code);
             break;
 
         case I2S_PLAY_SECOND_MELODY:
-
             NRF_LOG_INFO("Received i2s play command: 0x%x", command);
-            if(m_offset > 0) 
-            {
-                NRF_LOG_INFO("Wait for the last melody to finish playing", command);
-                return;
-            }
-            p_active_melody = melody_2;
-            m_melody_array_size = sizeof(melody_2);
-            APP_ERROR_CHECK( fill_buffers_and_start_i2s_transfer() );
+            err_code = i2s_start_playing(melody_2, sizeof(melody_2));
+            APP_ERROR_CHECK(err_code);
             break;
 
         default:
             NRF_LOG_INFO("Command not recognized: 0x%x", command);
+            break;
     }
 }
 
@@ -425,13 +363,6 @@ static void conn_params_init(void)
 
     err_code = ble_conn_params_init(&cp_init);
     APP_ERROR_CHECK(err_code);
-}
-
-
-/**@brief Function for starting timers.
- */
-static void application_timers_start(void)
-{
 }
 
 
@@ -631,7 +562,7 @@ static void power_management_init(void)
  *
  * @details If there is no pending log operation, then sleep until next the next event occurs.
  */
-static void idle_state_handle(void)
+inline static void idle_state_handle(void)
 {
     if (NRF_LOG_PROCESS() == false)
     {
@@ -652,21 +583,52 @@ static void advertising_start(void)
 /**
  * @brief Handler for BMA280 interrupt.
  */
-void bma280_int_handler(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
+static void bma280_int_handler(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
 {
-    bma280_int_detected = true;
+    b_bma280_int_detected = true;
+}
+
+
+/**@brief Function for handling the BMA280 interrupt (main loop).
+ */
+inline static void bma280_handle(void)
+{
+    if (b_bma280_int_detected == true) 
+    {
+        b_bma280_int_detected = false;
+
+        ret_code_t err_code;
+        BMA280_accel_values_t result_BMA;
+
+        err_code = BMA280_get_data( &g_i2c_instance, I2C_BMA280_ADDRESS, &result_BMA );
+        if (err_code != NRF_SUCCESS)
+        {
+            NRF_LOG_INFO("Cannot read values from BMA280 sensor, error: %d", err_code);
+            return;
+        }
+
+        NRF_LOG_INFO("X: %d, Y: %d, Z: %d", result_BMA.x, result_BMA.y, result_BMA.z);
+
+        err_code = ble_custom_service_on_accel_int(&m_custom_service, &result_BMA);
+        if (err_code != NRF_SUCCESS &&
+            err_code != BLE_ERROR_INVALID_CONN_HANDLE &&
+            err_code != NRF_ERROR_INVALID_STATE) {
+            APP_ERROR_CHECK(err_code);
+        }
+    }
 }
 
 
 /**
- * @brief Function for configuring: BMA280_INT_PIN pin for input
+ * @brief Function for configuring: BMA280_INT2_PIN pin for input
  * and configures GPIOTE to give an interrupt on pin change.
  */
 static void gpio_init(void)
 {
     ret_code_t err_code;
 
-    if(!nrf_drv_gpiote_is_init()) {
+    if(!nrf_drv_gpiote_is_init()) 
+    {
         err_code = nrf_drv_gpiote_init();
         APP_ERROR_CHECK(err_code);
     }
@@ -678,64 +640,16 @@ static void gpio_init(void)
     in_config.is_watcher = false;
     in_config.skip_gpio_setup = false;
 
-    err_code = nrf_drv_gpiote_in_init(BMA280_INT_PIN, &in_config, bma280_int_handler);
+    err_code = nrf_drv_gpiote_in_init(BMA280_INT2_PIN, &in_config, bma280_int_handler);
     APP_ERROR_CHECK(err_code);
 
-    nrf_drv_gpiote_in_event_enable(BMA280_INT_PIN, true);
+    nrf_drv_gpiote_in_event_enable(BMA280_INT2_PIN, true);
 }
 
-
-/**
- * @brief I2S driver data handler.
- */
-static void i2s_data_handler(nrf_drv_i2s_buffers_t const* p_released, uint32_t status)
-{
-    // 'nrf_drv_i2s_next_buffers_set' is called directly from the handler
-    // each time next buffers are requested, so data corruption is not
-    // expected.
-    ASSERT(p_released);
-
-    // When the handler is called after the transfer has been stopped
-    // (no next buffers are needed, only the used buffers are to be
-    // released), there is nothing to do.
-    if(!(status & NRFX_I2S_STATUS_NEXT_BUFFERS_NEEDED))
-    {
-        return;
-    }
-
-    // First call of this handler occurs right after the transfer is started.
-    // No data has been transferred yet at this point, so there is nothing to
-    // check. Only the buffers for the next part of the transfer should be
-    // provided.
-    if (!p_released->p_rx_buffer)
-    {
-        nrf_drv_i2s_buffers_t const next_buffer = {
-            .p_tx_buffer = m_buffer_tx[1],
-	    .p_rx_buffer = NULL,
-        };
-        APP_ERROR_CHECK(nrf_drv_i2s_next_buffers_set(&next_buffer));
-
-        mp_block_to_fill = m_buffer_tx[1];
-    }
-    else
-    {
-        // The driver has just finished accessing the buffers pointed by
-        // 'p_released'. They can be used for the next part of the transfer
-        // that will be scheduled now.
-        APP_ERROR_CHECK(nrf_drv_i2s_next_buffers_set(p_released));
-
-        // The pointer needs to be typecasted here, so that it is possible to
-        // modify the content it is pointing to (it is marked in the structure
-        // as pointing to constant data because the driver is not supposed to
-        // modify the provided data).
-        mp_block_to_fill = (uint32_t *)p_released->p_tx_buffer;
-    }
-
-}
 
 /**@brief Function for i2s initialization.
  */
-uint32_t i2s_init(void)
+static void i2s_init(void)
 {
     nrf_drv_i2s_config_t config = NRF_DRV_I2S_DEFAULT_CONFIG;
 
@@ -746,10 +660,62 @@ uint32_t i2s_init(void)
     config.mck_setup    = NRF_I2S_MCK_32MDIV31;
     config.ratio        = NRF_I2S_RATIO_64X;
     config.alignment    = NRF_I2S_ALIGN_LEFT;
+    config.channels     = NRF_I2S_CHANNELS_LEFT;
     config.sample_width = NRF_I2S_SWIDTH_16BIT;
 
-    ret_code_t err_code = nrf_drv_i2s_init(&config, i2s_data_handler);
+    ret_code_t err_code;
+    err_code = nrf_drv_i2s_init(&config, i2s_data_handler);
     APP_ERROR_CHECK(err_code);
+}
+
+
+/**@brief Function for i2c initialization.
+ */
+static void i2c_init(void)
+{
+    const nrf_drv_twi_config_t i2c_config = 
+    {
+       .scl                = BMA280_SCL_PIN,
+       .sda                = BMA280_SDA_PIN,
+       .frequency          = NRF_TWI_FREQ_100K,
+       .interrupt_priority = TWI_IRQ_PRIORITY_LOW,
+       .clear_bus_init     = false
+    };
+
+    ret_code_t err_code;
+    err_code = nrf_drv_twi_init(&g_i2c_instance, &i2c_config, i2c_handler, NULL);
+    APP_ERROR_CHECK(err_code);
+
+    nrf_drv_twi_enable(&g_i2c_instance); 
+    
+}
+
+
+/**@brief Function for BMA280 sensor initialization.
+ */
+static void accelerometer_init(void)
+{
+    ret_code_t err_code;
+
+    // Uncomment for BMA280 calibration
+    /*
+    err_code = BMA280_calibrate(&g_i2c_instance, I2C_BMA280_ADDRESS);
+    APP_ERROR_CHECK(err_code);
+    nrf_delay_ms(500);
+    */
+
+    const BMA280_config_t bma_config = 
+    {
+        .ascale         = AFS_2G,
+        .BW             = BW_7_81Hz,
+        .power_mode     = lowPower_Mode,
+        .sleep_dur      = sleep_500ms
+    };
+
+    err_code = BMA280_init(&bma_config, &g_i2c_instance, I2C_BMA280_ADDRESS);
+    APP_ERROR_CHECK(err_code);
+
+    BMA280_set_motion_detect_mode(&g_i2c_instance, I2C_BMA280_ADDRESS);
 }
 
 
@@ -761,7 +727,8 @@ int main(void)
     log_init();
     timers_init();
     gpio_init();
-    I2C_init();
+    i2c_init();
+    accelerometer_init();
     i2s_init();
     power_management_init();
     ble_stack_init();
@@ -771,52 +738,17 @@ int main(void)
     services_init();
     conn_params_init();
     peer_manager_init();
-    
-    //BMA280_Calibrate();  
-    //nrf_delay_ms(500);
-    
-    BMA280_Turn_On();
-    BMA280_Init_Interrupts();
 
     // Start execution.
     NRF_LOG_INFO("Program started.");
-    application_timers_start();
 
     advertising_start();
  
     // Enter main loop.
     while(true) 
     {
-        if(bma280_int_detected == true) 
-        {
-            bma280_int_detected = false;
-
-            BMA280_Accel_Values resultBMA;
-            BMA280_Get_Data( &resultBMA );
-
-            NRF_LOG_INFO("X: %d, Y: %d, Z: %d", resultBMA.x, resultBMA.y, resultBMA.z);
-
-            ret_code_t err_code = ble_custom_service_on_accel_int(&m_custom_service, &resultBMA);
-            if (err_code != NRF_SUCCESS &&
-                err_code != BLE_ERROR_INVALID_CONN_HANDLE &&
-                err_code != NRF_ERROR_INVALID_STATE) {
-                APP_ERROR_CHECK(err_code);
-            }
-        }
-
-        if(mp_block_to_fill) 
-        {
-            if(m_offset < m_melody_array_size) 
-            {
-                prepare_tx_data(mp_block_to_fill);
-            }
-            else 
-            {
-                m_offset = 0;
-                nrf_drv_i2s_stop();
-            }
-            mp_block_to_fill = NULL;
-        }
+        bma280_handle();
+        i2s_handle();
 
         idle_state_handle();
     }

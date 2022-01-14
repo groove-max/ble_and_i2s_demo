@@ -199,12 +199,12 @@ void ble_custom_service_on_ble_evt(ble_evt_t const * p_ble_evt, void * p_context
 }
 
 
-uint32_t ble_custom_service_on_accel_int(ble_custom_service_t * p_custom_service, BMA280_Accel_Values * data)
+uint32_t ble_custom_service_on_accel_int(ble_custom_service_t * p_custom_service, BMA280_accel_values_t * data)
 {
     ble_gatts_value_t gatts_value; 
 
     memset(&gatts_value, 0, sizeof(gatts_value));
-    gatts_value.len = sizeof(BMA280_Accel_Values);
+    gatts_value.len = sizeof(BMA280_accel_values_t);
     gatts_value.offset = 0;
     gatts_value.p_value = (uint8_t*) data;
     return sd_ble_gatts_value_set(p_custom_service->conn_handle, 

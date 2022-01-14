@@ -109,6 +109,6 @@ void ble_custom_service_on_ble_evt(ble_evt_t const * p_ble_evt, void * p_context
  *
  * @return      NRF_SUCCESS on successful writing of values, otherwise an error code.
  */
-uint32_t ble_custom_service_on_accel_int(ble_custom_service_t * p_custom_service, BMA280_Accel_Values * data);
+uint32_t ble_custom_service_on_accel_int(ble_custom_service_t * p_custom_service, BMA280_accel_values_t * data);
 
 #endif /* CUSTOM_SERVICE_H */

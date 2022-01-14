@@ -149,12 +149,16 @@
     <folder Name="sensors">
       <file file_name="../../../sensors/BMA280.c" />
       <file file_name="../../../sensors/BMA280.h" />
-      <file file_name="../../../sensors/I2C.c" />
-      <file file_name="../../../sensors/I2C.h" />
     </folder>
     <folder Name="melodies">
       <file file_name="../../../melodies/melody_1.h" />
       <file file_name="../../../melodies/melody_2.h" />
+    </folder>
+    <folder Name="drivers">
+      <file file_name="../../../drivers/i2c.c" />
+      <file file_name="../../../drivers/i2c.h" />
+      <file file_name="../../../drivers/i2s.c" />
+      <file file_name="../../../drivers/i2s.h" />
     </folder>
   </project>
   <configuration
