@@ -36,11 +36,11 @@ How to get started
 /Projects/ble_and_i2s_demo
 4. Now open "/Projects/ble_and_i2s_app_demo/pca10056/s140/config/sdk_config.h" and make nessessary changes for your configuration.
 Define I2S pins:
-#define I2S_CONFIG_SCK_PIN 31
-#define I2S_CONFIG_LRCK_PIN 29
-#define I2S_CONFIG_SDOUT_PIN 30
+  #define I2S_CONFIG_SCK_PIN 31
+  #define I2S_CONFIG_LRCK_PIN 29
+  #define I2S_CONFIG_SDOUT_PIN 30
 
 The next, need to define BMA280 pins:
-#define BMA280_INT2_PIN  NRF_GPIO_PIN_MAP(1, 13)
-#define BMA280_SCL_PIN  NRF_GPIO_PIN_MAP(0, 27)
-#define BMA280_SDA_PIN  NRF_GPIO_PIN_MAP(0, 26)
+  #define BMA280_INT2_PIN  NRF_GPIO_PIN_MAP(1, 13)
+  #define BMA280_SCL_PIN  NRF_GPIO_PIN_MAP(0, 27)
+  #define BMA280_SDA_PIN  NRF_GPIO_PIN_MAP(0, 26)
