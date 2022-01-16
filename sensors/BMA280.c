@@ -36,73 +36,43 @@
 #include "BMA280.h"
 
 
-i2c_error_t BMA280_set_motion_detect_mode(const i2c_instance_t * i2c, const uint8_t address)
+void BMA280_set_motion_detect_mode(const i2c_instance_t * i2c, const uint8_t address)
 {
-    if (i2c == NULL)
-    {
-      return I2C_ERROR_NULL;
-    }
-
-    i2c_error_t err_code = I2C_NO_ERROR;
-
-    err_code = i2c_write_byte(i2c, address, BMA280_INT_EN_1,  0x10);               // set data ready interrupt (bit 4) 
-    if(err_code != I2C_NO_ERROR) return err_code;
-
-    err_code = i2c_write_byte(i2c, address, BMA280_INT_MAP_1, 0x01);               // map data ready interrupt to INT1 (bit 0) 
-    if(err_code != I2C_NO_ERROR) return err_code;
-
-    err_code = i2c_write_byte(i2c, address, BMA280_INT_EN_0,  0x01 | 0x02 | 0x04); // set slope_en_x, slope_en_y, slope_en_z
-    if(err_code != I2C_NO_ERROR) return err_code;
-
-    err_code = i2c_write_byte(i2c, address, BMA280_INT_RST_LATCH,  0x02 | 0x80);   // set temporary, 500 ms and reset_int to the interrupt mode
-    if(err_code != I2C_NO_ERROR) return err_code;
-
-    err_code = i2c_write_byte(i2c, address, BMA280_INT_6,  0x08);                  // set the threshold definition for the any-motion interrupt
-    if(err_code != I2C_NO_ERROR) return err_code;
-
-    err_code = i2c_write_byte(i2c, address, BMA280_INT_MAP_2, 0x04);               // set int2_slope
-    if(err_code != I2C_NO_ERROR) return err_code;
-
-    err_code = i2c_write_byte(i2c, address, BMA280_INT_OUT_CTRL, 0x04 | 0x01);     // interrupts push-pull, active HIGH (bits 0:3) 
-    if(err_code != I2C_NO_ERROR) return err_code;
-
-    return I2C_NO_ERROR;
+    i2c_write_byte(i2c, address, BMA280_INT_EN_1,  0x10);               // set data ready interrupt (bit 4) 
+    i2c_write_byte(i2c, address, BMA280_INT_MAP_1, 0x01);               // map data ready interrupt to INT1 (bit 0) 
+    i2c_write_byte(i2c, address, BMA280_INT_EN_0,  0x01 | 0x02 | 0x04); // set slope_en_x, slope_en_y, slope_en_z
+    i2c_write_byte(i2c, address, BMA280_INT_RST_LATCH,  0x02 | 0x80);   // set temporary, 500 ms and reset_int to the interrupt mode
+    i2c_write_byte(i2c, address, BMA280_INT_6,  0x08);                  // set the threshold definition for the any-motion interrupt
+    i2c_write_byte(i2c, address, BMA280_INT_MAP_2, 0x04);               // set int2_slope
+    i2c_write_byte(i2c, address, BMA280_INT_OUT_CTRL, 0x04 | 0x01);     // interrupts push-pull, active HIGH (bits 0:3) 
 }
 
 
 i2c_error_t BMA280_init(const BMA280_config_t * config, const i2c_instance_t * i2c, const uint8_t address)
 {
-    if (config == NULL || i2c == NULL)
-    {
-      return I2C_ERROR_NULL;
-    }
+    ASSERT(config);
 
-    i2c_error_t err_code = I2C_NO_ERROR;
+    i2c_error_t err_code;
 
     // set full-scale range
     err_code = i2c_write_byte(i2c, address, BMA280_PMU_RANGE, config->ascale);
-    if(err_code != I2C_NO_ERROR) return err_code;
-
+    CHECK_ERROR_RETURN(err_code);
     // set bandwidth (and thereby sample rate)
-    err_code = i2c_write_byte(i2c, address, BMA280_PMU_BW, config->BW);
-    if(err_code != I2C_NO_ERROR) return err_code;
-
+    i2c_write_byte(i2c, address, BMA280_PMU_BW, config->BW);
+    CHECK_ERROR_RETURN(err_code);
     // set power mode and sleep duration
-    err_code = i2c_write_byte(i2c, address, BMA280_PMU_LPW, config->power_mode << 5 | config->sleep_dur << 1);
-    if(err_code != I2C_NO_ERROR) return err_code;
+    i2c_write_byte(i2c, address, BMA280_PMU_LPW, config->power_mode << 5 | config->sleep_dur << 1);
+    CHECK_ERROR_RETURN(err_code);
 
     return I2C_NO_ERROR;
-
 }   
 
 i2c_error_t BMA280_get_data(const i2c_instance_t * i2c, const uint8_t address, BMA280_accel_values_t * dest)
 {
-    if (dest == NULL || i2c == NULL)
-    {
-      return I2C_ERROR_NULL;
-    }
+    ASSERT(dest);
 
     i2c_error_t err_code = I2C_NO_ERROR;
+
     uint8_t rawData[6];  // x/y/z accel register data stored here
     err_code = i2c_read_bytes(i2c, address, BMA280_ACCD_X_LSB, rawData, 6);  // Read the 6 raw data registers into data array
     if(err_code == I2C_NO_ERROR)
@@ -115,26 +85,19 @@ i2c_error_t BMA280_get_data(const i2c_instance_t * i2c, const uint8_t address, B
     return err_code;
 }
 
-i2c_error_t BMA280_calibrate(const i2c_instance_t * i2c, const uint8_t address)
+void BMA280_calibrate(const i2c_instance_t * i2c, const uint8_t address)
 {
-    if (i2c == NULL)
-    {
-      return I2C_ERROR_NULL;
-    }
-
     //must be in normal power mode, and set to +/- 2g
     #ifdef __LOG_PRINTF
         __LOG_PRINTF("Hold flat and motionless for bias calibration");
     #endif
 
-    i2c_error_t err_code = I2C_NO_ERROR;
     uint8_t rd_byte;    
     uint8_t rawData[2];    // x/y/z accel register data stored here
     float FCres = 7.8125f; // fast compensation offset mg/LSB
     
 
-    err_code = i2c_write_byte(i2c, address, BMA280_OFC_SETTING, 0x20 | 0x01); // set target data to 0g, 0g, and +1g, cutoff at 1% of bandwidth
-    if(err_code != I2C_NO_ERROR) return err_code;
+    i2c_write_byte(i2c, address, BMA280_OFC_SETTING, 0x20 | 0x01); // set target data to 0g, 0g, and +1g, cutoff at 1% of bandwidth
     
     i2c_write_byte(i2c, address, BMA280_OFC_CTRL, 0x20); // x-axis calibration
 
@@ -167,7 +130,5 @@ i2c_error_t BMA280_calibrate(const i2c_instance_t * i2c, const uint8_t address)
         __LOG_PRINTF("y-axis offset = %d mg", (int16_t)(100.0f*(float)offsetY*FCres/256.0f));
         __LOG_PRINTF("z-axis offset = %d mg", (int16_t)(100.0f*(float)offsetZ*FCres/256.0f));
     #endif
-
-    return I2C_NO_ERROR;
 }
 

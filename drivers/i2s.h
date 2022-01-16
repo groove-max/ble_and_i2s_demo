@@ -3,6 +3,8 @@
 
 #define I2S_DATA_BLOCK_WORDS 1024
 
+#define CHECK_ERROR_RETURN(error) if (error != NRF_SUCCESS) return error
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -21,7 +23,7 @@ extern "C" {
      *
      * @param[in] p_block  Pointer to container which will be send.
      */
-    static ret_code_t i2s_prepare_tx_data(uint32_t * p_block);
+    static void i2s_prepare_tx_data(uint32_t * p_block);
 
 
     /**@brief Function for preparing i2s buffers and starting transfer.

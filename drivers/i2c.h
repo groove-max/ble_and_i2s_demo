@@ -2,8 +2,11 @@
 #define I2C_H__
 
 #define __LOG_PRINTF    NRF_LOG_INFO
-#define I2C_ERROR_NULL  NRF_ERROR_NULL
 #define I2C_NO_ERROR    NRF_SUCCESS
+
+#define CHECK_ERROR_RETURN(error) if (error != NRF_SUCCESS) return error
+
+#define I2C_WAIT_FOR_TRANSFER_DONE() while (m_xfer_done == false)
 
 #ifdef __cplusplus
 extern "C" {

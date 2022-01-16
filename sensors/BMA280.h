@@ -127,6 +127,9 @@ http://www.mouser.com/ds/2/783/BST-BMA280-DS000-11_published-786496.pdf
 #define sleep_500ms   0x0E
 #define sleep_1000ms  0x0F
 
+#ifndef ASSERT(expr)
+#define ASSERT(expr) 
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -168,7 +171,7 @@ extern "C" {
      * @param[in] i2c         Instance of I2C driver (platform depended).
      * @param[in] address     Sensor's I2C address.
      */
-    i2c_error_t BMA280_set_motion_detect_mode(const i2c_instance_t * i2c, const uint8_t address);
+    void BMA280_set_motion_detect_mode(const i2c_instance_t * i2c, const uint8_t address);
 
 
     /**@brief Function for reading accelerometer's values.
@@ -185,7 +188,7 @@ extern "C" {
      * @param[in] i2c         Instance of I2C driver (platform depended).
      * @param[in] address     Sensor's I2C address.
      */
-    i2c_error_t BMA280_calibrate(const i2c_instance_t * i2c, const uint8_t address);
+    void BMA280_calibrate(const i2c_instance_t * i2c, const uint8_t address);
 
 
 #ifdef __cplusplus

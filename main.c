@@ -84,7 +84,6 @@
 #include "melodies/melody_1.h"
 #include "melodies/melody_2.h"
 
-
 #define DEVICE_NAME                     "BLE_and_I2S_demo"                      /**< Name of device. Will be included in the advertising data. */
 #define MANUFACTURER_NAME               "NordicSemiconductor"                   /**< Manufacturer. Will be passed to Device Information Service. */
 
@@ -261,7 +260,7 @@ static void nrf_qwr_error_handler(uint32_t nrf_error)
  * @param[in] p_custom_service  Instance of Custom Service to which the write applies.
  * @param[in] command           Received command.
  */
-void audio_write_handler(uint16_t conn_handle, ble_custom_service_t * p_custom_service, player_commands_t command)
+static void audio_write_handler(uint16_t conn_handle, ble_custom_service_t * p_custom_service, player_commands_t command)
 {
     ret_code_t err_code;
      

@@ -7,12 +7,9 @@ static const uint8_t * mp_active_melody = NULL;                                 
 static uint32_t ma_melody_array_size = 0;                                       /**< Will write size of melody's array. */
 
 
-static ret_code_t i2s_prepare_tx_data(uint32_t * p_block)
+static void i2s_prepare_tx_data(uint32_t * p_block)
 {
-    if(p_block == NULL)
-    {
-        return NRF_ERROR_NULL;
-    }
+    ASSERT(p_block);
 
     // [each data word contains two 16-bit samples]
     uint16_t i = 0;
@@ -40,38 +37,29 @@ static ret_code_t i2s_prepare_tx_data(uint32_t * p_block)
         }
         i++;
     }
-
-    return NRF_SUCCESS;
 }
 
 
 static ret_code_t i2s_prepare_buffers_and_start_transfer(void)
 {
-    ret_code_t err_code;
-
-    err_code = i2s_prepare_tx_data(ma_buffer_tx[0]);
-    if (err_code != NRF_SUCCESS) 
-    {
-        return err_code;
-    }
+    i2s_prepare_tx_data(ma_buffer_tx[0]);
 
     nrf_drv_i2s_buffers_t const initial_buffers = {
         .p_tx_buffer = ma_buffer_tx[0],
         .p_rx_buffer = NULL,
     };
 
+    ret_code_t err_code;
     err_code = nrf_drv_i2s_start(&initial_buffers, I2S_DATA_BLOCK_WORDS, 0);
+    CHECK_ERROR_RETURN(err_code);
 
-    return err_code;
+    return NRF_SUCCESS;
 }
 
 
 ret_code_t i2s_start_playing(const uint8_t * const p_active_melody, const uint32_t melody_arr_size)
 {
-    if(p_active_melody == NULL)
-    {
-        return NRF_ERROR_NULL;
-    }
+    ASSERT(p_active_melody);
 
     // Check if offset is not empty. If not, then playback already is in progress.
     // Return no error, because no need to call APP_ERROR_HANDLER.
@@ -80,10 +68,14 @@ ret_code_t i2s_start_playing(const uint8_t * const p_active_melody, const uint32
         return NRF_SUCCESS;
     }
 
-    mp_active_melody = p_active_melody;
+    mp_active_melody     = p_active_melody;
     ma_melody_array_size = melody_arr_size;
 
-    return i2s_prepare_buffers_and_start_transfer();
+    ret_code_t err_code;
+    err_code = i2s_prepare_buffers_and_start_transfer();
+    CHECK_ERROR_RETURN(err_code);
+
+    return NRF_SUCCESS;
 }
 
 
@@ -149,12 +141,11 @@ void i2s_handle(void)
         if(m_offset < ma_melody_array_size) 
         {
             i2s_prepare_tx_data(mp_block_to_fill);
+            mp_block_to_fill = NULL;
         }
         else 
         {
-            m_offset = 0;
-            nrf_drv_i2s_stop();
+            i2s_stop_playing();
         }
-        mp_block_to_fill = NULL;
     }
 }

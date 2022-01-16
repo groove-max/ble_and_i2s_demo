@@ -9,7 +9,8 @@ Has one BLE service with two characteristics:
 - 0x02 - Start to play the second melody
 - 0x03 - Stop playing
 
-2. Accelerometer (read only), 6 bytes
+2. Accelerometer (read only), 6 bytes.
+
 Contains the last accelerometer's values, written in unsigned Big Endian format, 2 bytes for each value (x,y,z).
 
 Hardware requirements
@@ -45,4 +46,4 @@ The next, need to define BMA280 pins:
 - #define BMA280_SCL_PIN  NRF_GPIO_PIN_MAP(0, 27)
 - #define BMA280_SDA_PIN  NRF_GPIO_PIN_MAP(0, 26)
 
-5. Now you can open file "ble_and_i2s_app_demo/pca10056/s140/ses/emProject" in Segger Embedded Studio, compile, flash and run application.
+5. Now you can open file "ble_and_i2s_app_demo/pca10056/s140/ses/*ble_and_i2s_app_demo_pca10056_s140.emProject*" in Segger Embedded Studio, compile, flash and run application.
