@@ -127,15 +127,15 @@ http://www.mouser.com/ds/2/783/BST-BMA280-DS000-11_published-786496.pdf
 #define sleep_500ms   0x0E
 #define sleep_1000ms  0x0F
 
-#ifndef ASSERT(expr)
-#define ASSERT(expr) 
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
     #include "../drivers/i2c.h"
+
+    #ifndef ASSERT
+    #define ASSERT(expr) 
+    #endif
 
     /**@brief BMA280 accelerometer's values structure.
      *        Contain values for each axis (x,y,z).

@@ -57,11 +57,13 @@ i2c_error_t BMA280_init(const BMA280_config_t * config, const i2c_instance_t * i
     // set full-scale range
     err_code = i2c_write_byte(i2c, address, BMA280_PMU_RANGE, config->ascale);
     CHECK_ERROR_RETURN(err_code);
+
     // set bandwidth (and thereby sample rate)
-    i2c_write_byte(i2c, address, BMA280_PMU_BW, config->BW);
+    err_code = i2c_write_byte(i2c, address, BMA280_PMU_BW, config->BW);
     CHECK_ERROR_RETURN(err_code);
+
     // set power mode and sleep duration
-    i2c_write_byte(i2c, address, BMA280_PMU_LPW, config->power_mode << 5 | config->sleep_dur << 1);
+    err_code = i2c_write_byte(i2c, address, BMA280_PMU_LPW, config->power_mode << 5 | config->sleep_dur << 1);
     CHECK_ERROR_RETURN(err_code);
 
     return I2C_NO_ERROR;

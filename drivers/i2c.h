@@ -12,6 +12,7 @@
 extern "C" {
 #endif
 
+    #include "nrf_assert.h"
     #include "nrf_drv_twi.h"
     #include "app_error.h"
     #include "nrf_log.h"
