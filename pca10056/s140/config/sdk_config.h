@@ -38,13 +38,13 @@
  *
  */
 
-
+#define USE_APP_CONFIG
 
 #ifndef SDK_CONFIG_H
 #define SDK_CONFIG_H
 // <<< Use Configuration Wizard in Context Menu >>>\n
 #ifdef USE_APP_CONFIG
-#include "app_config.h"
+#include "./app_config.h"
 #endif
 // <h> Board Support 
 
@@ -12118,21 +12118,6 @@
 
 #ifndef SEGGER_BMA
 #define SEGGER_BMA 0
-#endif
-
-/**< Define BMA280 INT2 pin. */
-#ifndef BMA280_INT2_PIN
-#define BMA280_INT2_PIN  NRF_GPIO_PIN_MAP(1, 13)
-#endif
-
-/**< Define BMA280 TWI SCL pin. */
-#ifndef BMA280_SCL_PIN
-#define BMA280_SCL_PIN  NRF_GPIO_PIN_MAP(0, 27)
-#endif
-
-/**< Define BMA280 I2C SDA pin. */
-#ifndef BMA280_SDA_PIN
-#define BMA280_SDA_PIN  NRF_GPIO_PIN_MAP(0, 26)
 #endif
 
 // </h> 

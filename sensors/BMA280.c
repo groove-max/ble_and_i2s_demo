@@ -1,42 +1,64 @@
-/* Copyright (c) 2017, Stanford University
- * All rights reserved.
- * 
- * The point of contact for the MENTAID wearables dev team is 
- * Jan Liphardt (jan.liphardt@stanford.edu)
- * 
- * The code is modified from a reference implementation by Kris Winer
- * (tleracorp@gmail.com)
- * Copyright (c) 2017, Tlera Corporation
- * The license terms of the TLERACORP material are: 
- * "Library may be used freely and without limit with attribution."
- * 
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- * 3. Neither the name of STANFORD UNIVERSITY nor the names of its contributors 
- *    may be used to endorse or promote products derived from this software 
- *    without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY STANFORD UNIVERSITY "AS IS" AND ANY EXPRESS 
- * OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES 
- * OF MERCHANTABILITY, NONINFRINGEMENT, AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL STANFORD UNIVERSITY OR ITS CONTRIBUTORS BE 
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE 
- * GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) 
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT 
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT 
- * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+#include "bma280.h"
 
-#include "BMA280.h"
+#define BMA280_BGW_CHIPID      0x00
+#define BMA280_ACCD_X_LSB      0x02
+#define BMA280_ACCD_X_MSB      0x03
+#define BMA280_ACCD_Y_LSB      0x04
+#define BMA280_ACCD_Y_MSB      0x05
+#define BMA280_ACCD_Z_LSB      0x06
+#define BMA280_ACCD_Z_MSB      0x07
+#define BMA280_ACCD_TEMP       0x08
+#define BMA280_INT_STATUS_0    0x09
+#define BMA280_INT_STATUS_1    0x0A
+#define BMA280_INT_STATUS_2    0x0B
+#define BMA280_INT_STATUS_3    0x0C
+#define BMA280_FIFO_STATUS     0x0E
+#define BMA280_PMU_RANGE       0x0F
+#define BMA280_PMU_BW          0x10
+#define BMA280_PMU_LPW         0x11
+#define BMA280_PMU_LOW_NOISE   0x12
+#define BMA280_ACCD_HBW        0x13
+#define BMA280_BGW_SOFTRESET   0x14
+#define BMA280_INT_EN_0        0x16
+#define BMA280_INT_EN_1        0x17
+#define BMA280_INT_EN_2        0x18
+#define BMA280_INT_MAP_0       0x19
+#define BMA280_INT_MAP_1       0x1A
+#define BMA280_INT_MAP_2       0x1B
+#define BMA280_INT_SRC         0x1E
+#define BMA280_INT_OUT_CTRL    0x20
+#define BMA280_INT_RST_LATCH   0x21
+#define BMA280_INT_0           0x22
+#define BMA280_INT_1           0x23
+#define BMA280_INT_2           0x24
+#define BMA280_INT_3           0x25
+#define BMA280_INT_4           0x26
+#define BMA280_INT_5           0x27
+#define BMA280_INT_6           0x28
+#define BMA280_INT_7           0x29
+#define BMA280_INT_8           0x2A
+#define BMA280_INT_9           0x2B
+#define BMA280_INT_A           0x2C
+#define BMA280_INT_B           0x2D
+#define BMA280_INT_C           0x2E
+#define BMA280_INT_D           0x2F
+#define BMA280_FIFO_CONFIG_0   0x30
+#define BMA280_PMU_SELF_TEST   0x32
+#define BMA280_TRIM_NVM_CTRL   0x33
+#define BMA280_BGW_SPI3_WDT    0x34
+#define BMA280_OFC_CTRL        0x36
+#define BMA280_OFC_SETTING     0x37
+#define BMA280_OFC_OFFSET_X    0x38
+#define BMA280_OFC_OFFSET_Y    0x39
+#define BMA280_OFC_OFFSET_Z    0x3A
+#define BMA280_TRIM_GP0        0x3B
+#define BMA280_TRIM_GP1        0x3C
+#define BMA280_FIFO_CONFIG_1   0x3E
+#define BMA280_FIFO_DATA       0x3F
 
+static bool volatile m_bma280_int_detected = true;                      /**< bma280 interrupt detection flag. True to fill startup values from accelerometer. */
 
-void BMA280_set_motion_detect_mode(const i2c_instance_t * i2c, const uint8_t address)
+void bma280_set_interrupt_detect_mode_slow(const i2c_instance_t * i2c, const uint8_t address)
 {
     i2c_write_byte(i2c, address, BMA280_INT_EN_1,  0x10);               // set data ready interrupt (bit 4) 
     i2c_write_byte(i2c, address, BMA280_INT_MAP_1, 0x01);               // map data ready interrupt to INT1 (bit 0) 
@@ -47,8 +69,7 @@ void BMA280_set_motion_detect_mode(const i2c_instance_t * i2c, const uint8_t add
     i2c_write_byte(i2c, address, BMA280_INT_OUT_CTRL, 0x04 | 0x01);     // interrupts push-pull, active HIGH (bits 0:3) 
 }
 
-
-i2c_error_t BMA280_init(const BMA280_config_t * config, const i2c_instance_t * i2c, const uint8_t address)
+i2c_error_t bma280_init(const bma280_config_t * config, const i2c_instance_t * i2c, const uint8_t address)
 {
     ASSERT(config);
 
@@ -69,7 +90,7 @@ i2c_error_t BMA280_init(const BMA280_config_t * config, const i2c_instance_t * i
     return I2C_NO_ERROR;
 }   
 
-i2c_error_t BMA280_get_data(const i2c_instance_t * i2c, const uint8_t address, BMA280_accel_values_t * dest)
+i2c_error_t bma280_get_data(const i2c_instance_t * i2c, const uint8_t address, bma280_accel_values_t * dest)
 {
     ASSERT(dest);
 
@@ -87,7 +108,7 @@ i2c_error_t BMA280_get_data(const i2c_instance_t * i2c, const uint8_t address, B
     return err_code;
 }
 
-void BMA280_calibrate(const i2c_instance_t * i2c, const uint8_t address)
+void bma280_calibrate(const i2c_instance_t * i2c, const uint8_t address)
 {
     //must be in normal power mode, and set to +/- 2g
     #ifdef __LOG_PRINTF
@@ -134,3 +155,23 @@ void BMA280_calibrate(const i2c_instance_t * i2c, const uint8_t address)
     #endif
 }
 
+/**
+ * @brief bma280 interrupt handler.
+ */
+void bma280_interrupt_handler()
+{
+    m_bma280_int_detected = true;
+}
+
+/**
+ * @brief Function for checking if interrupt was detected.
+ */
+bool bma280_is_interrupt_detected(void)
+{
+    if(m_bma280_int_detected == true)
+    {
+        m_bma280_int_detected = false;
+        return true;
+    }
+    return false;
+}

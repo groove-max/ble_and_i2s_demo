@@ -1,17 +1,100 @@
 #include "i2s.h"
 
-static uint32_t ma_buffer_tx[2][I2S_DATA_BLOCK_WORDS];                          /**< I2S TX buffer. */
-static uint32_t m_offset = 0;                                                   /**< Melody's array offset when writing to buffer. */
-static uint32_t * volatile mp_block_to_fill = NULL;
-static const uint8_t * mp_active_melody = NULL;                                 /**< Pointer for active melody's const array. */
-static uint32_t ma_melody_array_size = 0;                                       /**< Will write size of melody's array. */
+static struct i2s_instance_s {
+    uint32_t buffer_tx[2][I2S_DATA_BLOCK_WORDS];                          /**< I2S TX buffer. */
+    uint32_t buffer_rx[2][I2S_DATA_BLOCK_WORDS];                          /**< I2S RX buffer. */
+    uint32_t offset;                                                      /**< Melody's array offset when writing to buffer. */
+    uint32_t * volatile block_to_fill;                                    /**< Pointer to buffer, which will be written. */
+    const uint8_t * active_melody;                                        /**< Pointer for active melody's const array. */
+    uint32_t melody_array_size;                                           /**< Will written size of melody's array. */
+} m_i2s_instance;
 
+static void i2s_prepare_tx_data(uint32_t*);
+__STATIC_INLINE void i2s_data_handler(nrf_drv_i2s_buffers_t const*, uint32_t);
 
+ret_code_t i2s_init(nrf_drv_i2s_config_t const * config)
+{
+    ret_code_t err_code;
+
+    memset(&m_i2s_instance, 0, sizeof(m_i2s_instance));
+
+    err_code = nrf_drv_i2s_init(config, i2s_data_handler);
+    CHECK_ERROR_RETURN(err_code);
+
+    return NRF_SUCCESS;
+}
+
+void i2s_deinit(void)
+{
+    nrf_drv_i2s_uninit();
+}
+
+ret_code_t i2s_start_playing(const uint8_t * const p_active_melody, const uint32_t melody_arr_size)
+{
+    ASSERT(p_active_melody);
+    ASSERT(melody_arr_size);
+
+    // Check if offset is not empty. If not, then playback already is in progress.
+    // Return no error.
+    if(m_i2s_instance.offset > 0) 
+    {
+        return NRF_SUCCESS;
+    }
+
+    m_i2s_instance.active_melody     = p_active_melody;
+    m_i2s_instance.melody_array_size = melody_arr_size;
+
+    i2s_prepare_tx_data(m_i2s_instance.buffer_tx[0]);
+
+    nrf_drv_i2s_buffers_t const initial_buffers = {
+        .p_tx_buffer = m_i2s_instance.buffer_tx[0],
+        .p_rx_buffer = m_i2s_instance.buffer_rx[0],
+    };
+
+    ret_code_t err_code;
+    err_code = nrf_drv_i2s_start(&initial_buffers, I2S_DATA_BLOCK_WORDS, 0);
+    CHECK_ERROR_RETURN(err_code);
+
+    return NRF_SUCCESS;
+}
+
+void i2s_stop_playing(void)
+{
+    m_i2s_instance.block_to_fill = NULL;
+    m_i2s_instance.offset        = 0;
+
+    nrf_drv_i2s_stop();
+}
+
+bool i2s_was_playing_finished(void) 
+{
+    return m_i2s_instance.offset ? false : true;
+}
+
+void i2s_handle(void)
+{
+    if(m_i2s_instance.block_to_fill != NULL) 
+    {
+        if(m_i2s_instance.offset < m_i2s_instance.melody_array_size) 
+        {
+            i2s_prepare_tx_data(m_i2s_instance.block_to_fill);
+            m_i2s_instance.block_to_fill = NULL;
+        }
+        else 
+        {
+            i2s_stop_playing();
+        }
+    }
+}
+
+/**@brief Function for preparing buffer to send via i2s.
+ *
+ * @param[in] p_block  Pointer to container which will be send. Each data word contains two 16-bit samples.
+ */
 static void i2s_prepare_tx_data(uint32_t * p_block)
 {
     ASSERT(p_block);
 
-    // [each data word contains two 16-bit samples]
     uint16_t i = 0;
     bool is_end = false;
 
@@ -25,127 +108,50 @@ static void i2s_prepare_tx_data(uint32_t * p_block)
         uint8_t j;
         for(j = 0; j < sizeof(uint32_t)/sizeof(uint8_t); j++) 
         {
-            if(m_offset >= ma_melody_array_size) 
+            if(m_i2s_instance.offset >= m_i2s_instance.melody_array_size) 
             {
                 is_end = true;
                 break;
             }
             else 
             {
-                ((uint8_t *)p_word)[j] = mp_active_melody[m_offset++];
+                ((uint8_t *)p_word)[j] = m_i2s_instance.active_melody[m_i2s_instance.offset++];
             }
         }
         i++;
     }
 }
 
-
-static ret_code_t i2s_prepare_buffers_and_start_transfer(void)
+/**
+ * @brief I2S driver data handler.
+ */
+__STATIC_INLINE void i2s_data_handler(nrf_drv_i2s_buffers_t const* p_released, uint32_t status)
 {
-    i2s_prepare_tx_data(ma_buffer_tx[0]);
-
-    nrf_drv_i2s_buffers_t const initial_buffers = {
-        .p_tx_buffer = ma_buffer_tx[0],
-        .p_rx_buffer = NULL,
-    };
-
-    ret_code_t err_code;
-    err_code = nrf_drv_i2s_start(&initial_buffers, I2S_DATA_BLOCK_WORDS, 0);
-    CHECK_ERROR_RETURN(err_code);
-
-    return NRF_SUCCESS;
-}
-
-
-ret_code_t i2s_start_playing(const uint8_t * const p_active_melody, const uint32_t melody_arr_size)
-{
-    ASSERT(p_active_melody);
-
-    // Check if offset is not empty. If not, then playback already is in progress.
-    // Return no error, because no need to call APP_ERROR_HANDLER.
-    if(m_offset > 0) 
-    {
-        return NRF_SUCCESS;
-    }
-
-    mp_active_melody     = p_active_melody;
-    ma_melody_array_size = melody_arr_size;
-
-    ret_code_t err_code;
-    err_code = i2s_prepare_buffers_and_start_transfer();
-    CHECK_ERROR_RETURN(err_code);
-
-    return NRF_SUCCESS;
-}
-
-
-void i2s_stop_playing(void)
-{
-    mp_block_to_fill = NULL;
-    m_offset = 0;
-
-    nrf_drv_i2s_stop();
-}
-
-
-void i2s_data_handler(nrf_drv_i2s_buffers_t const* p_released, uint32_t status)
-{
-    // 'nrf_drv_i2s_next_buffers_set' is called directly from the handler
-    // each time next buffers are requested, so data corruption is not
-    // expected.
     ASSERT(p_released);
 
-    // When the handler is called after the transfer has been stopped
-    // (no next buffers are needed, only the used buffers are to be
-    // released), there is nothing to do.
+    ret_code_t err_code;
+
     if(!(status & NRFX_I2S_STATUS_NEXT_BUFFERS_NEEDED))
     {
         return;
     }
 
-    // First call of this handler occurs right after the transfer is started.
-    // No data has been transferred yet at this point, so there is nothing to
-    // check. Only the buffers for the next part of the transfer should be
-    // provided.
     if (!p_released->p_rx_buffer)
     {
         nrf_drv_i2s_buffers_t const next_buffer = {
-            .p_tx_buffer = ma_buffer_tx[1],
-	    .p_rx_buffer = NULL,
+            .p_tx_buffer = m_i2s_instance.buffer_tx[1],
+	    .p_rx_buffer = m_i2s_instance.buffer_rx[1]
         };
-        APP_ERROR_CHECK(nrf_drv_i2s_next_buffers_set(&next_buffer));
+        err_code = nrf_drv_i2s_next_buffers_set(&next_buffer);
+        APP_ERROR_CHECK(err_code);
 
-        mp_block_to_fill = ma_buffer_tx[1];
-    }
-    else
+        m_i2s_instance.block_to_fill = m_i2s_instance.buffer_tx[1];
+    } else 
     {
-        // The driver has just finished accessing the buffers pointed by
-        // 'p_released'. They can be used for the next part of the transfer
-        // that will be scheduled now.
-        APP_ERROR_CHECK(nrf_drv_i2s_next_buffers_set(p_released));
+        err_code = nrf_drv_i2s_next_buffers_set(p_released);
+        APP_ERROR_CHECK(err_code);
 
-        // The pointer needs to be typecasted here, so that it is possible to
-        // modify the content it is pointing to (it is marked in the structure
-        // as pointing to constant data because the driver is not supposed to
-        // modify the provided data).
-        mp_block_to_fill = (uint32_t *)p_released->p_tx_buffer;
+        m_i2s_instance.block_to_fill = (uint32_t *)p_released->p_tx_buffer;
     }
 
-}
-
-
-void i2s_handle(void)
-{
-    if(mp_block_to_fill) 
-    {
-        if(m_offset < ma_melody_array_size) 
-        {
-            i2s_prepare_tx_data(mp_block_to_fill);
-            mp_block_to_fill = NULL;
-        }
-        else 
-        {
-            i2s_stop_playing();
-        }
-    }
 }
