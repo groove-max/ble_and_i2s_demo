@@ -82,6 +82,14 @@ typedef struct ble_service_init_s
  * @param[in] p_service        Pointer to BLE service handle.
  * @param[in] p_char_init      Pointer to characteristic's init structure.
  * @param[out] p_char_handles  Pointer to characteristic handle, if need to get.
+ *
+ * @retval ::NRF_SUCCESS Successfully added a characteristic.
+ * @retval ::NRF_ERROR_INVALID_ADDR Invalid pointer supplied.
+ * @retval ::NRF_ERROR_INVALID_PARAM Invalid parameter(s) supplied, service handle, Vendor Specific UUIDs, lengths, and permissions need to adhere to the constraints.
+ * @retval ::NRF_ERROR_INVALID_STATE Invalid state to perform operation, a service context is required.
+ * @retval ::NRF_ERROR_FORBIDDEN Forbidden value supplied, certain UUIDs are reserved for the stack.
+ * @retval ::NRF_ERROR_NO_MEM Not enough memory to complete operation.
+ * @retval ::NRF_ERROR_DATA_SIZE Invalid data size(s) supplied, attribute lengths are restricted by @ref BLE_GATTS_ATTR_LENS_MAX.
  */
 ret_code_t ble_service_add_characteristic(ble_service_t * p_service, 
                                           const ble_characteristic_init_t const * p_char_init, 

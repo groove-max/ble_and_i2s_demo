@@ -32,7 +32,7 @@
 #include "melodies/melody_1.h"
 #include "melodies/melody_2.h"
 
-/** @brief Set values for available commands which will get via i2s
+/** @brief Available commands that can be received via i2s.
  */
 typedef enum player_commands_e {
     I2S_PLAY_FIRST_MELODY  = 0x01,
@@ -79,24 +79,24 @@ static const uint16_t g_main_ble_chars_uuids[] = {
     0x1402
 };
 
-/** @brief Accelerometer Characteristic handles.
- */
+/** @brief Accelerometer Characteristic handles. */
 static ble_gatts_char_handles_t gp_main_ble_accel_handles;
+
+/** @brief Flag to detect bma280 interrupt. */
+static volatile bool m_bma280_int_detected = true;
 
 #define TWI_INSTANCE_ID       0
 #define TWI_IRQ_PRIORITY_LOW  3
 
-/** @brief Define our instances of BLE and i2c.
- */
+/** @brief Define our instances of BLE and i2c. */
 BLE_MANAGER_DEF(m_ble_services, MAIN_BLE_SERVICES_COUNT);                       /**< BLE Manager instance. */
 I2C_DEF(m_i2c_instance, TWI_INSTANCE_ID);                                       /**< I2C instance. */
 
-/**@brief Forward declaration of init functions. */
-static void log_init(void);
-static void timers_init(void);
-static void gpio_init(void);
-static void power_management_init(void);
-__STATIC_INLINE void bma280_handle(bool);
+/**@brief Forward declaration of some init functions. */
+__STATIC_INLINE void log_init(void);
+__STATIC_INLINE void timers_init(void);
+__STATIC_INLINE void gpio_init(void);
+__STATIC_INLINE void power_management_init(void);
 
 /**@brief Function for handling write events to the Audio characteristic.
  *
@@ -104,7 +104,7 @@ __STATIC_INLINE void bma280_handle(bool);
  * @param[out] data           Buffer of received data.
  * @param[out] data_len       Size of data.
  */
-static void audio_write_handler(const ble_characteristic_t const * writable_char, const uint8_t * data, const uint16_t data_len)
+__STATIC_INLINE void audio_write_handler(const ble_characteristic_t const * writable_char, const uint8_t * data, const uint16_t data_len)
 {
     ASSERT(writable_char);
     ASSERT(data);
@@ -140,7 +140,7 @@ static void audio_write_handler(const ble_characteristic_t const * writable_char
 
 /**@brief Function for initializing BLE Services.
  */
-static void ble_init(void)
+__STATIC_INLINE void ble_init(void)
 {
     ret_code_t err_code;
 
@@ -170,7 +170,7 @@ static void ble_init(void)
         .char_uuid     = g_main_ble_chars_uuids[MAIN_BLE_ACCEL_CHAR],
         .is_readable   = true,
         .is_writeable  = false,
-        .attr_len      = sizeof(bma280_accel_values_t),
+        .attr_len      = sizeof(bma280_values_t),
         .write_handler = NULL
     };
     err_code = ble_manager_add_characteristic(&m_ble_services[MAIN_BLE_CUSTOM_SERVICE], &accel_char, &gp_main_ble_accel_handles); // Added the second char
@@ -185,7 +185,7 @@ static void ble_init(void)
 
 /**@brief Function for sound(i2s) initialization.
  */
-static void snd_init(void)
+__STATIC_INLINE void snd_init(void)
 {
     nrf_drv_i2s_config_t config = NRF_DRV_I2S_DEFAULT_CONFIG;
 
@@ -201,72 +201,16 @@ static void snd_init(void)
     APP_ERROR_CHECK(err_code);
 }
 
-
-/**@brief Function for bma280 sensor initialization.
- */
-static void accelerometer_init(void)
-{
-    ret_code_t err_code;
-
-    // Firstly need to init i2c instance.
-    const nrf_drv_twi_config_t i2c_config = 
-    {
-       .scl                = BMA280_SCL_PIN,
-       .sda                = BMA280_SDA_PIN,
-       .frequency          = NRF_TWI_FREQ_100K,
-       .interrupt_priority = TWI_IRQ_PRIORITY_LOW,
-       .clear_bus_init     = false
-    };
-
-    err_code = i2c_init(&m_i2c_instance, &i2c_config);
-    APP_ERROR_CHECK(err_code);
-
-    // Uncomment for bma280 calibration.
-    /*
-    err_code = bma280_calibrate(&m_i2c_instance, BMA280_I2C_ADDRESS);
-    APP_ERROR_CHECK(err_code);
-    nrf_delay_ms(500);
-    */
-
-    const bma280_config_t bma_config = 
-    {
-        .ascale         = AFS_2G,
-        .BW             = BW_7_81Hz,
-        .power_mode     = lowPower_Mode,
-        .sleep_dur      = sleep_500ms
-    };
-
-    // Now we can init bma280 sensor with our i2c instance.
-    err_code = bma280_init(&bma_config, &m_i2c_instance, BMA280_I2C_ADDRESS);
-    APP_ERROR_CHECK(err_code);
-
-    // Set bma280 working mode.
-    bma280_set_interrupt_detect_mode_slow(&m_i2c_instance, BMA280_I2C_ADDRESS);
-    bma280_handle(true);
-}
-
-
-/**@brief Function for handling the idle state (main loop).
- *
- * @details If there is no pending log operation, then sleep until next the next event occurs.
- */
-__STATIC_INLINE void idle_state_handle(void)
-{
-    if (NRF_LOG_PROCESS() == false && i2s_was_playing_finished() == true)
-    {
-        nrf_pwr_mgmt_run();
-    }
-}
-
-
 /**@brief Function for handling the bma280 interrupt (main loop).
  */
-__STATIC_INLINE void bma280_handle(bool b_force_update)
+__STATIC_INLINE void bma280_handle()
 {
-    if (bma280_is_interrupt_detected() == true || b_force_update == true) 
+    if (m_bma280_int_detected == true) 
     {
-        ret_code_t            err_code;
-        bma280_accel_values_t result;
+        m_bma280_int_detected = false;
+
+        ret_code_t      err_code;
+        bma280_values_t result;
 
         err_code = bma280_get_data(&m_i2c_instance, BMA280_I2C_ADDRESS, &result);
         if (err_code != NRF_SUCCESS)
@@ -291,6 +235,63 @@ __STATIC_INLINE void bma280_handle(bool b_force_update)
 }
 
 
+
+/**@brief Function for bma280 sensor initialization.
+ */
+__STATIC_INLINE void accelerometer_init(void)
+{
+    ret_code_t err_code;
+
+    // Firstly need to init i2c instance.
+    const nrf_drv_twi_config_t i2c_config = 
+    {
+       .scl                = BMA280_SCL_PIN,
+       .sda                = BMA280_SDA_PIN,
+       .frequency          = NRF_TWI_FREQ_100K,
+       .interrupt_priority = TWI_IRQ_PRIORITY_LOW,
+       .clear_bus_init     = false
+    };
+
+    err_code = i2c_init(&m_i2c_instance, &i2c_config);
+    APP_ERROR_CHECK(err_code);
+
+    // Uncomment for bma280 calibration.
+    /*
+    err_code = bma280_calibrate(&m_i2c_instance, BMA280_I2C_ADDRESS);
+    APP_ERROR_CHECK(err_code);
+    nrf_delay_ms(500);
+    */
+
+    const bma280_init_t bma_config = 
+    {
+        .ascale         = AFS_2G,
+        .BW             = BW_7_81Hz,
+        .power_mode     = lowPower_Mode,
+        .sleep_dur      = sleep_500ms
+    };
+
+    // Now we can init bma280 sensor with our i2c instance.
+    err_code = bma280_init(&bma_config, &m_i2c_instance, BMA280_I2C_ADDRESS);
+    APP_ERROR_CHECK(err_code);
+
+    // Set bma280 working mode.
+    bma280_set_interrupt_detect_mode_slow(&m_i2c_instance, BMA280_I2C_ADDRESS);
+    bma280_handle();
+}
+
+
+/**@brief Function for handling the idle state (main loop).
+ *
+ * @details If there is no pending log operation, then sleep until next the next event occurs.
+ */
+__STATIC_INLINE void idle_state_handle(void)
+{
+    if (NRF_LOG_PROCESS() == false && i2s_was_playing_finished() == true)
+    {
+        nrf_pwr_mgmt_run();
+    }
+}
+
 /**@brief Function for application main entry.
  */
 int main(void)
@@ -310,13 +311,12 @@ int main(void)
     // Enter main loop.
     while(true) 
     {
-        bma280_handle(false);
+        bma280_handle();
         i2s_handle();
 
         idle_state_handle();
     }
 }
-
 
 /**@brief Callback function for asserts in the SoftDevice.
  *
@@ -339,7 +339,7 @@ void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
  *
  * @details Initializes the timer module. This creates and starts application timers.
  */
-static void timers_init(void)
+__STATIC_INLINE void timers_init(void)
 {
     // Initialize timer module.
     ret_code_t err_code = app_timer_init();
@@ -349,7 +349,7 @@ static void timers_init(void)
 
 /**@brief Function for initializing the nrf log module.
  */
-static void log_init(void)
+__STATIC_INLINE void log_init(void)
 {
     ret_code_t err_code = NRF_LOG_INIT(NULL);
     APP_ERROR_CHECK(err_code);
@@ -360,19 +360,26 @@ static void log_init(void)
 
 /**@brief Function for initializing power management.
  */
-static void power_management_init(void)
+__STATIC_INLINE void power_management_init(void)
 {
     ret_code_t err_code;
     err_code = nrf_pwr_mgmt_init();
     APP_ERROR_CHECK(err_code);
 }
 
+/**
+ * @brief bma280 interrupt handler.
+ */
+__STATIC_INLINE void bma280_interrupt_handler()
+{
+    m_bma280_int_detected = true;
+}
 
 /**
  * @brief Function for configuring: bma280_INT2_PIN pin for input
  * and configures GPIOTE to give an interrupt on pin change.
  */
-static void gpio_init(void)
+__STATIC_INLINE void gpio_init(void)
 {
     ret_code_t err_code;
 

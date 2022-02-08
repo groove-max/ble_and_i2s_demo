@@ -8,8 +8,8 @@
 extern "C" {
 #endif
 
-#define BLE_MANAGER_DEF(_name, _count)       \                                  /**< Definition for our BLE Manager. */
-BLE_SERVICE_DEF(_name, _count)
+#define BLE_MANAGER_DEF(_name, _count)       \
+BLE_SERVICE_DEF(_name, _count)                                                  /**< Definition for our BLE Manager. */
 
 #ifndef DEVICE_BLE_NAME
 #define DEVICE_BLE_NAME                 "BLE_device"                            /**< Name of device. Will be included in the advertising data. */

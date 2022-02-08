@@ -56,10 +56,11 @@
 #define BMA280_FIFO_CONFIG_1   0x3E
 #define BMA280_FIFO_DATA       0x3F
 
-static bool volatile m_bma280_int_detected = true;                      /**< bma280 interrupt detection flag. True to fill startup values from accelerometer. */
-
 void bma280_set_interrupt_detect_mode_slow(const i2c_instance_t * i2c, const uint8_t address)
 {
+    ASSERT(i2c);
+    ASSERT(address);
+
     i2c_write_byte(i2c, address, BMA280_INT_EN_1,  0x10);               // set data ready interrupt (bit 4) 
     i2c_write_byte(i2c, address, BMA280_INT_MAP_1, 0x01);               // map data ready interrupt to INT1 (bit 0) 
     i2c_write_byte(i2c, address, BMA280_INT_EN_0,  0x01 | 0x02 | 0x04); // set slope_en_x, slope_en_y, slope_en_z
@@ -69,9 +70,11 @@ void bma280_set_interrupt_detect_mode_slow(const i2c_instance_t * i2c, const uin
     i2c_write_byte(i2c, address, BMA280_INT_OUT_CTRL, 0x04 | 0x01);     // interrupts push-pull, active HIGH (bits 0:3) 
 }
 
-i2c_error_t bma280_init(const bma280_config_t * config, const i2c_instance_t * i2c, const uint8_t address)
+i2c_error_t bma280_init(const bma280_init_t * config, const i2c_instance_t * i2c, const uint8_t address)
 {
     ASSERT(config);
+    ASSERT(i2c);
+    ASSERT(address);
 
     i2c_error_t err_code;
 
@@ -90,8 +93,10 @@ i2c_error_t bma280_init(const bma280_config_t * config, const i2c_instance_t * i
     return I2C_NO_ERROR;
 }   
 
-i2c_error_t bma280_get_data(const i2c_instance_t * i2c, const uint8_t address, bma280_accel_values_t * dest)
+i2c_error_t bma280_get_data(const i2c_instance_t * i2c, const uint8_t address, bma280_values_t * dest)
 {
+    ASSERT(i2c);
+    ASSERT(address);
     ASSERT(dest);
 
     i2c_error_t err_code = I2C_NO_ERROR;
@@ -110,6 +115,9 @@ i2c_error_t bma280_get_data(const i2c_instance_t * i2c, const uint8_t address, b
 
 void bma280_calibrate(const i2c_instance_t * i2c, const uint8_t address)
 {
+    ASSERT(i2c);
+    ASSERT(address);
+
     //must be in normal power mode, and set to +/- 2g
     #ifdef __LOG_PRINTF
         __LOG_PRINTF("Hold flat and motionless for bias calibration");
@@ -153,25 +161,4 @@ void bma280_calibrate(const i2c_instance_t * i2c, const uint8_t address)
         __LOG_PRINTF("y-axis offset = %d mg", (int16_t)(100.0f*(float)offsetY*FCres/256.0f));
         __LOG_PRINTF("z-axis offset = %d mg", (int16_t)(100.0f*(float)offsetZ*FCres/256.0f));
     #endif
-}
-
-/**
- * @brief bma280 interrupt handler.
- */
-void bma280_interrupt_handler()
-{
-    m_bma280_int_detected = true;
-}
-
-/**
- * @brief Function for checking if interrupt was detected.
- */
-bool bma280_is_interrupt_detected(void)
-{
-    if(m_bma280_int_detected == true)
-    {
-        m_bma280_int_detected = false;
-        return true;
-    }
-    return false;
 }

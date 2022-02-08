@@ -70,9 +70,7 @@ ret_code_t ble_service_add_characteristic(ble_service_t * p_service,
     ret_code_t err_code;
     ble_gatts_char_handles_t p_handle;
     err_code = sd_ble_gatts_characteristic_add(p_service->service_handle, &char_md, &attr_char_value, &p_handle);
-    if(err_code != NRF_SUCCESS) {
-        return err_code;
-    }
+    CHECK_ERROR_RETURN(err_code);
     p_service->chars[p_service->chars_count].char_handle = p_handle;
     p_service->chars[p_service->chars_count].write_handler = p_char_init->write_handler;
     if(p_char_handle != NULL) {
