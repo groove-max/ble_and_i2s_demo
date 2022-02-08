@@ -101,8 +101,9 @@
       <file file_name="../../../../nRF5_SDK_current/components/libraries/bsp/bsp_btn_ble.c" />
     </folder>
     <folder Name="Application">
-      <file file_name="../../../main.c" />
       <file file_name="../config/sdk_config.h" />
+      <file file_name="../config/app_config.h" />
+      <file file_name="../../../main.c" />
     </folder>
     <folder Name="nRF_Segger_RTT">
       <file file_name="../../../../nRF5_SDK_current/external/segger_rtt/SEGGER_RTT.c" />
@@ -138,23 +139,29 @@
       <file file_name="../../../../nRF5_SDK_current/components/softdevice/common/nrf_sdh_ble.c" />
       <file file_name="../../../../nRF5_SDK_current/components/softdevice/common/nrf_sdh_soc.c" />
     </folder>
-    <folder Name="services">
-      <file file_name="../../../services/custom_service.c" />
-      <file file_name="../../../services/custom_service.h" />
+    <folder Name="ble_manager">
+      <file file_name="../../../ble_manager/ble_service.c" />
+      <file file_name="../../../ble_manager/ble_service.h" />
+      <file file_name="../../../ble_manager/ble_manager.c" />
+      <file file_name="../../../ble_manager/ble_manager.h" />
     </folder>
     <configuration
       Name="Debug"
       c_preprocessor_definitions="APP_TIMER_V2;APP_TIMER_V2_RTC1_ENABLED"
       linker_section_placement_macros="RAM_START=0x20002270;RAM_SIZE=0x3dda0" />
     <folder Name="sensors">
-      <file file_name="../../../sensors/BMA280.c" />
-      <file file_name="../../../sensors/BMA280.h" />
-      <file file_name="../../../sensors/I2C.c" />
-      <file file_name="../../../sensors/I2C.h" />
+      <file file_name="../../../sensors/bma280.c" />
+      <file file_name="../../../sensors/bma280.h" />
     </folder>
     <folder Name="melodies">
       <file file_name="../../../melodies/melody_1.h" />
       <file file_name="../../../melodies/melody_2.h" />
+    </folder>
+    <folder Name="drivers">
+      <file file_name="../../../drivers/i2c.c" />
+      <file file_name="../../../drivers/i2c.h" />
+      <file file_name="../../../drivers/i2s.c" />
+      <file file_name="../../../drivers/i2s.h" />
     </folder>
   </project>
   <configuration
